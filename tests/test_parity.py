@@ -34,8 +34,8 @@ def test_png_every_filter_decodes_like_upstream(filter_type):
     assert np.array_equal(upstream.imread(encoded, extension=".png"), expected)
 
 
-@pytest.mark.parametrize("filter_type", [0, 2])
-def test_png_simd_copy_and_up_filters_handle_scalar_tail(filter_type):
+@pytest.mark.parametrize("filter_type", [0, 2, 4])
+def test_png_simd_filters_handle_scalar_tail(filter_type):
     expected = rng.integers(0, 256, size=(9, 13, 3), dtype=np.uint8)
     encoded = iio.imwrite(
         "<bytes>", expected, extension=".png", filter_type=filter_type
@@ -44,8 +44,9 @@ def test_png_simd_copy_and_up_filters_handle_scalar_tail(filter_type):
     assert np.array_equal(upstream.imread(encoded, extension=".png"), expected)
 
 
-def test_png_adaptive_filter_parallel_threshold():
-    expected = rng.integers(0, 256, size=(343, 257, 3), dtype=np.uint8)
+@pytest.mark.parametrize("height", [339, 343])
+def test_png_adaptive_filter_parallel_threshold(height):
+    expected = rng.integers(0, 256, size=(height, 257, 3), dtype=np.uint8)
     encoded = iio.imwrite(
         "<bytes>", expected, extension=".png", compress_level=0
     )

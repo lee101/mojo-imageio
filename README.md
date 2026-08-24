@@ -80,19 +80,26 @@ Python dispatch, allocation, container handling, and compression where applicabl
 
 | operation | mojo-imageio | reference | speedup |
 | --- | ---: | ---: | ---: |
-| PNG encode 2048x1536 RGB | 138.78 ms | 271.39 ms (imageio) | 1.96x |
-| PNG decode 2048x1536 RGB | 52.76 ms | 66.96 ms (imageio) | 1.27x |
-| BMP encode 2048x1536 RGB | 7.11 ms | 14.98 ms (imageio) | 2.11x |
-| BMP decode 2048x1536 RGB | 6.36 ms | 14.25 ms (imageio) | 2.24x |
-| PPM encode 2048x1536 RGB | 2.56 ms | 13.33 ms (imageio) | 5.21x |
-| QOI encode 512x512 RGB | 3.93 ms | 629.24 ms (Python reference) | 160.12x |
+| PNG encode 2048x1536 RGB | 132.08 ms | 194.65 ms (imageio) | 1.47x |
+| PNG decode 2048x1536 RGB | 29.59 ms | 40.00 ms (imageio) | 1.35x |
+| BMP encode 2048x1536 RGB | 7.24 ms | 11.38 ms (imageio) | 1.57x |
+| BMP decode 2048x1536 RGB | 5.91 ms | 15.00 ms (imageio) | 2.54x |
+| PPM encode 2048x1536 RGB | 2.59 ms | 10.90 ms (imageio) | 4.20x |
+| QOI encode 512x512 RGB | 3.89 ms | 614.41 ms (Python reference) | 158.14x |
 
 PNG adaptive filtering scores all five candidates in one SIMD pass and distributes
 large, independent scanlines across physical cores. Filter 0 and filter 2 decoding
-also use SIMD fast paths. PNG deflate and inflate use the zlib-compatible zlib-ng
-backend; NumPy pixel and scanline buffers still cross the FFI boundary without a
-copy. BMP and PPM avoid Pillow's object/plugin overhead, and the native QOI state
-machine is much faster than the independent Python reference.
+use SIMD fast paths, while RGB Paeth reconstruction evaluates its three independent
+channels in SIMD lanes and retains a scalar tail. Sub, Average, and Paeth each have
+branch-free inner loops specialized outside the scanline loop. PNG deflate and
+inflate use the zlib-compatible zlib-ng backend; NumPy pixel and scanline buffers
+still cross the FFI boundary without a copy. BMP and PPM avoid Pillow's object/plugin
+overhead, and the native QOI state machine is much faster than the independent
+Python reference.
+
+No GPU path is provided: these codec transforms are low-arithmetic-intensity byte
+streams, and PNG reconstruction also has scanline dependencies. Device transfer and
+launch overhead would dominate rather than accelerate them.
 
 The QOI row uses the independent implementation of the published QOI algorithm
 in `bench/bench.py`; it is not an upstream-imageio comparison.

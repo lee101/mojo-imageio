@@ -13,6 +13,7 @@ def bp(addr: Int) -> BPtr:
     return BPtr(unsafe_from_address=addr)
 
 
+@always_inline
 def paeth(a: Int, b: Int, c: Int) -> Int:
     var p = a + b - c
     var pa = abs(p - a)
@@ -285,25 +286,81 @@ def png_unfilter(src: BPtr, dst: BPtr, height: Int, stride: Int, bpp: Int) -> In
                 )
                 x += 1
             continue
-        for x in range(stride):
+        if filter_type == 1 or (filter_type == 4 and y == 0):
+            var prefix = min(bpp, stride)
+            for x in range(prefix):
+                dst[row + x] = src[src_row + 1 + x]
+            var x = prefix
+            if bpp == 3:
+                while x + 2 < stride:
+                    dst[row + x] = src[src_row + 1 + x] + dst[row + x - 3]
+                    dst[row + x + 1] = (
+                        src[src_row + 2 + x] + dst[row + x - 2]
+                    )
+                    dst[row + x + 2] = (
+                        src[src_row + 3 + x] + dst[row + x - 1]
+                    )
+                    x += 3
+            while x < stride:
+                dst[row + x] = src[src_row + 1 + x] + dst[row + x - bpp]
+                x += 1
+            continue
+        if filter_type == 3:
+            var prefix = min(bpp, stride)
+            var x = 0
+            if y == 0:
+                while x < prefix:
+                    dst[row + x] = src[src_row + 1 + x]
+                    x += 1
+                while x < stride:
+                    dst[row + x] = UInt8(
+                        (Int(src[src_row + 1 + x])
+                         + Int(dst[row + x - bpp]) // 2) & 255
+                    )
+                    x += 1
+            else:
+                while x < prefix:
+                    dst[row + x] = UInt8(
+                        (Int(src[src_row + 1 + x])
+                         + Int(dst[row + x - stride]) // 2) & 255
+                    )
+                    x += 1
+                while x < stride:
+                    dst[row + x] = UInt8(
+                        (Int(src[src_row + 1 + x])
+                         + (Int(dst[row + x - bpp])
+                            + Int(dst[row + x - stride])) // 2) & 255
+                    )
+                    x += 1
+            continue
+        var prefix = min(bpp, stride)
+        var x = 0
+        while x < prefix:
+            dst[row + x] = src[src_row + 1 + x] + dst[row + x - stride]
+            x += 1
+        if bpp == 3:
+            while x + W <= stride:
+                var prediction = paeth_vector(
+                    dst.load[width=W](row + x - 3),
+                    dst.load[width=W](row + x - stride),
+                    dst.load[width=W](row + x - stride - 3),
+                )
+                var reconstructed = (
+                    src.load[width=W](src_row + 1 + x) + prediction
+                )
+                dst[row + x] = reconstructed[0]
+                dst[row + x + 1] = reconstructed[1]
+                dst[row + x + 2] = reconstructed[2]
+                x += 3
+        while x < stride:
             var filtered = Int(src[src_row + 1 + x])
-            var left = Int(dst[row + x - bpp]) if x >= bpp else 0
-            var up = Int(dst[row + x - stride]) if y > 0 else 0
-            var upper_left = (
-                Int(dst[row + x - stride - bpp])
-                if y > 0 and x >= bpp
-                else 0
+            var left = Int(dst[row + x - bpp])
+            var up = Int(dst[row + x - stride])
+            var upper_left = Int(dst[row + x - stride - bpp])
+            dst[row + x] = UInt8(
+                (filtered + paeth(left, up, upper_left)) & 255
             )
-            var prediction = 0
-            if filter_type == 1:
-                prediction = left
-            elif filter_type == 2:
-                prediction = up
-            elif filter_type == 3:
-                prediction = (left + up) // 2
-            elif filter_type == 4:
-                prediction = paeth(left, up, upper_left)
-            dst[row + x] = UInt8((filtered + prediction) & 255)
+            x += 1
     return 0
 
 
