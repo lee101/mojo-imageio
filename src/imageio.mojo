@@ -1,12 +1,9 @@
 """Native byte transforms for image codecs exposed through a C ABI."""
 
 from std.math import abs
-from std.runtime import initialize_runtime
-from std.runtime.asyncrt import TaskGroup
 from std.sys.info import num_physical_cores, simd_width_of as simdwidthof
 
 comptime BPtr = UnsafePointer[UInt8, AnyOrigin[mut=True]]
-comptime PNG_PARALLEL_BYTES = 262144
 
 
 def bp(addr: Int) -> BPtr:
@@ -211,43 +208,10 @@ def png_filter_row(
         x += 1
 
 
-async def png_filter_worker(
-    src: BPtr,
-    dst: BPtr,
-    height: Int,
-    stride: Int,
-    bpp: Int,
-    mode: Int,
-    worker: Int,
-    workers: Int,
-):
-    var y0 = worker * height // workers
-    var y1 = (worker + 1) * height // workers
-    for y in range(y0, y1):
-        png_filter_row(src, dst, y, stride, bpp, mode)
-
 
 def png_filter(src: BPtr, dst: BPtr, height: Int, stride: Int, bpp: Int, mode: Int):
-    var workers = (
-        min(height, num_physical_cores())
-        if height * stride >= PNG_PARALLEL_BYTES
-        else 1
-    )
-
-    if workers > 1:
-        initialize_runtime()
-        var tasks = TaskGroup()
-        for worker in range(workers):
-            tasks.create_task(
-                png_filter_worker(
-                    src, dst, height, stride, bpp, mode, worker, workers
-                )
-            )
-        tasks.wait()
-    else:
-        png_filter_row(src, dst, 0, stride, bpp, mode)
-        for y in range(1, height):
-            png_filter_row(src, dst, y, stride, bpp, mode)
+    for y in range(height):
+        png_filter_row(src, dst, y, stride, bpp, mode)
 
 
 def png_unfilter(src: BPtr, dst: BPtr, height: Int, stride: Int, bpp: Int) -> Int:
