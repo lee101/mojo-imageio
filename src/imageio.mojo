@@ -97,15 +97,15 @@ def png_filter_row(
             scalar4 += residual_score(raw - up)
             x += 1
         while x + W <= stride:
-            var raw = src.load[width=W](row + x)
-            var left = src.load[width=W](row + x - bpp)
+            var raw = src.unsafe_load[width=W](row + x)
+            var left = src.unsafe_load[width=W](row + x - bpp)
             var up = (
-                src.load[width=W](row + x - stride)
+                src.unsafe_load[width=W](row + x - stride)
                 if y > 0
                 else SIMD[DType.uint8, W](0)
             )
             var upper_left = (
-                src.load[width=W](row + x - stride - bpp)
+                src.unsafe_load[width=W](row + x - stride - bpp)
                 if y > 0
                 else SIMD[DType.uint8, W](0)
             )
@@ -165,15 +165,15 @@ def png_filter_row(
         dst[dst_row + 1 + x] = UInt8((raw - prediction) & 255)
         x += 1
     while x + W <= stride:
-        var raw = src.load[width=W](row + x)
-        var left = src.load[width=W](row + x - bpp)
+        var raw = src.unsafe_load[width=W](row + x)
+        var left = src.unsafe_load[width=W](row + x - bpp)
         var up = (
-            src.load[width=W](row + x - stride)
+            src.unsafe_load[width=W](row + x - stride)
             if y > 0
             else SIMD[DType.uint8, W](0)
         )
         var upper_left = (
-            src.load[width=W](row + x - stride - bpp)
+            src.unsafe_load[width=W](row + x - stride - bpp)
             if y > 0
             else SIMD[DType.uint8, W](0)
         )
@@ -225,7 +225,7 @@ def png_unfilter(src: BPtr, dst: BPtr, height: Int, stride: Int, bpp: Int) -> In
         if filter_type == 0:
             var x = 0
             while x + W <= stride:
-                dst.store(row + x, src.load[width=W](src_row + 1 + x))
+                dst.store(row + x, src.unsafe_load[width=W](src_row + 1 + x))
                 x += W
             while x < stride:
                 dst[row + x] = src[src_row + 1 + x]
@@ -235,12 +235,12 @@ def png_unfilter(src: BPtr, dst: BPtr, height: Int, stride: Int, bpp: Int) -> In
             var x = 0
             while x + W <= stride:
                 var up = (
-                    dst.load[width=W](row + x - stride)
+                    dst.unsafe_load[width=W](row + x - stride)
                     if y > 0
                     else SIMD[DType.uint8, W](0)
                 )
                 dst.store(
-                    row + x, src.load[width=W](src_row + 1 + x) + up
+                    row + x, src.unsafe_load[width=W](src_row + 1 + x) + up
                 )
                 x += W
             while x < stride:
@@ -305,12 +305,12 @@ def png_unfilter(src: BPtr, dst: BPtr, height: Int, stride: Int, bpp: Int) -> In
         if bpp == 3:
             while x + W <= stride:
                 var prediction = paeth_vector(
-                    dst.load[width=W](row + x - 3),
-                    dst.load[width=W](row + x - stride),
-                    dst.load[width=W](row + x - stride - 3),
+                    dst.unsafe_load[width=W](row + x - 3),
+                    dst.unsafe_load[width=W](row + x - stride),
+                    dst.unsafe_load[width=W](row + x - stride - 3),
                 )
                 var reconstructed = (
-                    src.load[width=W](src_row + 1 + x) + prediction
+                    src.unsafe_load[width=W](src_row + 1 + x) + prediction
                 )
                 dst[row + x] = reconstructed[0]
                 dst[row + x + 1] = reconstructed[1]
